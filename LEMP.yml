@@ -1,0 +1,138 @@
+# lemp -> amazon linux
+# nginx, mariadb105-server, mariadb, php, php-fpm
+---
+- name: install lemp in amazon linux
+  hosts: localhost
+  become: yes
+  tasks:
+
+  # install nginx
+  - name: install nginx package
+    ansible.builtin.dnf:
+      name: nginx
+      state: present
+
+  # install mariadb
+  - name: install mariadb package
+    ansible.builtin.dnf:
+      name: mariadb105-server
+      state: present
+
+  # install php
+  - name: install php package
+    ansible.builtin.dnf:
+      name:
+        - php
+        - php-fpm
+        - php-mysqlnd
+      state: present
+
+  # start php-fpm first
+  - name: start and enable php-fpm
+    ansible.builtin.systemd:
+      name: php-fpm
+      state: started
+      enabled: true
+
+  # start mariadb
+  - name: start and enable mariadb
+    ansible.builtin.systemd:
+      name: mariadb
+      state: started
+      enabled: true
+
+  # configure nginx for php
+  - name: configure nginx for php-fpm
+    ansible.builtin.copy:
+      dest: /etc/nginx/conf.d/php.conf
+      content: |
+        server {
+            listen 80;
+            server_name _;
+            root /usr/share/nginx/html;
+            index index.php index.html;
+
+            location / {
+                try_files $uri $uri/ =404;
+            }
+
+            location ~ \.php$ {
+                include /etc/nginx/fastcgi_params;
+                fastcgi_pass unix:/run/php-fpm/www.sock;
+                fastcgi_index index.php;
+                fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            }
+        }
+
+  # deploy php page
+  - name: deploy php
+    ansible.builtin.copy:
+      dest: /usr/share/nginx/html/index.php
+      owner: nginx
+      group: nginx
+      mode: '0644'
+      content: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>LEMP Stack Deployment</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    background: linear-gradient(120deg, #cce7ff, #e3f2fd);
+                }
+                .box {
+                    width: 600px;
+                    margin: 80px auto;
+                    background: white;
+                    padding: 25px;
+                    border-radius: 15px;
+                    box-shadow: 0 0 18px rgba(33, 150, 243, 0.4);
+                    border-top: 6px solid #2196f3;
+                }
+                h2 {
+                    text-align: center;
+                    color: #1565c0;
+                }
+                .status {
+                    margin-top: 20px;
+                    line-height: 1.8;
+                }
+                .footer {
+                    text-align: center;
+                    margin-top: 22px;
+                    font-size: 13px;
+                    color: #1565c0;
+                }
+            </style>
+        </head>
+        <body>
+
+        <div class="box">
+            <h2> LEMP STACK SUCCESSFULLY DEPLOYED</h2>
+
+            <div class="status">
+                <b>Nginx Web Server:</b> Running <br>
+                <b>MariaDB Database:</b> Running <br>
+                <b>PHP Version:</b> <?php echo phpversion(); ?> <br><br>
+
+                <b>Server Hostname:</b> <?php echo gethostname(); ?> <br>
+                <b>Server IP:</b> <?php echo $_SERVER['SERVER_ADDR']; ?> <br>
+                <b>Date & Time:</b> <?php echo date("Y-m-d H:i:s"); ?>
+            </div>
+
+            <div class="footer">
+                Deployed using Ansible on Amazon Linux <br>
+                Project by <b>VAISHNAVI KADAM</b>
+            </div>
+        </div>
+
+        </body>
+        </html>
+
+  # start and enable nginx LAST
+  - name: start and enable nginx
+    ansible.builtin.systemd:
+      name: nginx
+      state: restarted
+      enabled: true
